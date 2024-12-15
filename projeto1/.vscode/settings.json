@@ -1,0 +1,20 @@
+{
+  "files.associations": {
+    "*.css": "tailwindcss",
+    "pthread.h": "c",
+    "globals.h": "c",
+    "stdio.h": "c",
+    "unistd.h": "c",
+    "semaphore.h": "c"
+  },
+  "cSpell.words": [
+    "avaliacao",
+    "destroi",
+    "disponivel",
+    "padawan",
+    "padawans",
+    "salao",
+    "semaforos",
+    "yoda"
+  ]
+}
