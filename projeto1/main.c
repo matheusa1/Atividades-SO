@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 int main() {
+  // Função que inicia todos os semáforos.
   inicia_semaforos();
 
   pthread_t yoda_thread;
@@ -38,6 +39,7 @@ int main() {
     pthread_cancel(publico_thread[i]);
   }
 
+  // Função que destrói todos os semáforos.
   destroi_semaforos();
 
   return 0;
