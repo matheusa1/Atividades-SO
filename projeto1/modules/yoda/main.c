@@ -2,23 +2,15 @@
 #include "interface.h"
 #include <semaphore.h>
 
-#define NR_PUBLICO_PERMITIDO 5
-
-int padawans_aprovados = 0;
-
-void inicia_testes() {
-  sem_wait(&sem_padawan_pronto);
-  printf("Yoda está iniciando os testes\n");
-  entrada_disponivel = 0;
-
-  for (int i = 0; i < NR_PUBLICO_PERMITIDO + 1; i++) {
-    sem_post(&sem_avaliacao_andamento);
-  }
-}
-
 void libera_entrada() {
-  printf("Yoda liberou a entrada do Padawan\n");
-  sem_post(&sem_padawan_entrada);
+  padawans_no_salao = 0;
+
+  printf("Yoda liberou a entrada dos Padawans, %d vagas\n",
+         NR_PADAWAN_PERMITIDO);
+
+  for (int i = 0; i < NR_PADAWAN_PERMITIDO; i++) {
+    sem_post(&sem_padawan_entrada);
+  }
 
   int vagas_publico = NR_PUBLICO_PERMITIDO - vagas_publico_utilizadas;
 
@@ -29,69 +21,87 @@ void libera_entrada() {
   }
 }
 
-void anuncia_resultado() {
-  sem_wait(&sem_padawan_pronto);
-  printf("Yoda está avaliando o Padawan\n");
-  sleep(1);
+void inicia_testes() {
+  entrada_disponivel = 0;
+  printf("Yoda iniciou os testes\n");
 
-  srand(rand());
-
-  int numero = rand() % 100;
-  printf("Yoda avaliou o Padawan com nota %d/100\n", numero);
-
-  if (numero >= 60) {
-    resultado_avaliacao = 1;
-    printf("Padawn aprovado 👍\n");
-  } else {
-    resultado_avaliacao = 2;
-    printf("Padawn reprovado 👎\n");
+  for (int i = 0; i < vagas_publico_utilizadas; i++) {
+    sem_post(&sem_avaliacao_andamento);
   }
 
-  sem_post(&sem_avaliacao_resultado);
+  for (int i = 0; i < padawans_no_salao; i++) {
+    int id_padawan = fila_padawans[i];
+    sem_post(&sem_padawans[id_padawan]);
+    sem_wait(&sem_padawans_output[id_padawan]);
+  }
 }
 
-void aguarda_cumprimento() {
-  sem_wait(&sem_padawan_pronto);
-  printf("Yoda foi cumprimentado pelo Padawan\n");
+void avalia_padawan(int id) {
+  printf("Yoda está avaliando Padawan %d\n", id);
+
+  int resultado = rand() % 100;
+  if (resultado >= 60) {
+    resultado_padawans[id] = 1;
+    padawans_aprovados += 1;
+  } else {
+    resultado_padawans[id] = 0;
+  }
+
+  printf("Yoda avaliou Padawan %d\n", id);
 }
 
-void corta_tranca() {
-  sem_wait(&sem_aguarda_corte_trança);
-  printf("Yoda está cortando a trança do Padawan\n");
-  sleep(1);
-  printf("Yoda terminou de cortar a trança do Padawan\n");
-  sem_post(&sem_padawan_pronto);
+int anuncia_resultado(int id) {
+  printf("Yoda irá anunciar o resultado do Padawan %d\n", id);
+  if (resultado_padawans[id] == 1) {
+    printf("Padawan %d foi aprovado\n", id);
+  } else {
+    printf("Padawan %d foi reprovado\n", id);
+  }
+  sem_post(&sem_padawans[id]);
+  sem_wait(&sem_padawans_output[id]);
+  return resultado_padawans[id];
 }
 
-void finaliza_teste() {
-  sem_wait(&sem_padawan_saiu);
-  printf("Yoda finalizou o teste\n");
+void cumprimenta_Padawan(int id) {
+  printf("Yoda está cumprimentando Padawan %d\n", id);
+  sem_post(&sem_padawans[id]);
+  sem_wait(&sem_padawans_output[id]);
+}
+
+void corta_tranca(int id) {
+  printf("Yoda está cortando a trança do Padawan %d\n", id);
+  sem_post(&sem_padawans[id]);
+  sem_wait(&sem_padawans_output[id]);
 }
 
 void *yoda(void *args) {
-  int numero_de_padawans = padawans_restantes;
-
   while (padawans_restantes > 0) {
+
     libera_entrada();
-    sleep(2);
-    inicia_testes();
-    anuncia_resultado();
-    if (resultado_avaliacao == 2) {
-      aguarda_cumprimento();
-      finaliza_teste();
-      padawans_restantes--;
-      continue;
-    } else {
-      padawans_aprovados++;
-      corta_tranca();
-      finaliza_teste();
+    sleep(5);
+
+    printf(
+        "Fila de Padawans por ordem de chegada para realização dos testes: [");
+    for (int i = 0; i < padawans_no_salao; i++) {
+      printf("%d, ", fila_padawans[i]);
     }
-    padawans_restantes--;
+    printf("\b\b]\n");
+
+    inicia_testes();
+    for (int i = 0; i < padawans_no_salao; i++) {
+      avalia_padawan(fila_padawans[i]);
+      int resultado = anuncia_resultado(fila_padawans[i]);
+      if (resultado == 1) {
+        corta_tranca(fila_padawans[i]);
+      } else {
+        cumprimenta_Padawan(fila_padawans[i]);
+      }
+    }
   }
 
   printf("Yoda finalizou o dia\n");
 
-  if (padawans_aprovados == numero_de_padawans) {
+  if (padawans_aprovados == NUM_PADAWAN) {
     printf("Hum... Sentir a Forca, eu posso. Emocionado, eu estou. Orgulho, em "
            "meu coracao, transborda. Padawans, voces sao. Jedi, agora, voces "
            "se tornaram.\n\n");
@@ -129,7 +139,7 @@ void *yoda(void *args) {
            "caimos.\n\n");
     printf("Nao desistir, voces devem. O caminho, dificil e, mas possivel. Que "
            "a Forca, com voces, sempre esteja.\n");
-  } else if (padawans_aprovados >= numero_de_padawans / 2) {
+  } else if (padawans_aprovados >= NUM_PADAWAN / 2) {
     printf(
         "Hum... Sentir a Forca, eu posso. Emocionado e orgulhoso, eu estou, "
         "de muitos de voces. Triste e desapontado, tambem estou, por outros. "
@@ -154,7 +164,7 @@ void *yoda(void *args) {
     printf("Parabens, jovens Jedi, que passaram. E para aqueles que nao "
            "passaram, nao desistir, voces devem. Que a Forca, com todos voces, "
            "sempre esteja.\n");
-  } else if (padawans_aprovados < numero_de_padawans / 2) {
+  } else if (padawans_aprovados < NUM_PADAWAN / 2) {
     printf("Hum... Sentir a Forca, eu posso. Desapontado, eu estou, mas muito "
            "orgulhoso, tambem estou, daqueles que passaram. Padawans, voces "
            "sao. Jedi, alguns de voces, agora se tornaram.\n\n");

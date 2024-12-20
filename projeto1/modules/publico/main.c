@@ -32,4 +32,6 @@ void *publico(void *arg) {
     assiste_teste(id);
     sai_salao(id);
   }
+
+  pthread_exit(NULL);
 }

@@ -4,26 +4,29 @@
 #include "modules/yoda/interface.h"
 #include <stdio.h>
 
-#define NUM_PUBLICO 10
-#define NUM_PADAWAN 3
-
 int main() {
   inicia_semaforos();
-  padawans_restantes = NUM_PADAWAN;
 
   pthread_t yoda_thread;
   pthread_t publico_thread[NUM_PUBLICO];
   pthread_t padawan_thread[NUM_PADAWAN];
 
+  int padawan_ids[NUM_PADAWAN];
+  int publico_ids[NUM_PUBLICO];
+
+  for (int i = 1; i <= NUM_PADAWAN; i++) {
+    padawan_ids[i - 1] = i;
+    pthread_create(&padawan_thread[i - 1], NULL, padawan,
+                   (void *)&padawan_ids[i - 1]);
+  }
+
+  for (int i = 1; i <= NUM_PUBLICO; i++) {
+    publico_ids[i - 1] = i;
+    pthread_create(&publico_thread[i - 1], NULL, publico,
+                   (void *)&publico_ids[i - 1]);
+  }
+
   pthread_create(&yoda_thread, NULL, yoda, NULL);
-
-  for (int i = 0; i < NUM_PUBLICO; i++) {
-    pthread_create(&publico_thread[i], NULL, publico, (void *)&i);
-  }
-
-  for (int i = 0; i < NUM_PADAWAN; i++) {
-    pthread_create(&padawan_thread[i], NULL, padawan, (void *)&i);
-  }
 
   pthread_join(yoda_thread, NULL);
 
@@ -34,6 +37,8 @@ int main() {
   for (int i = 0; i < NUM_PUBLICO; i++) {
     pthread_cancel(publico_thread[i]);
   }
+
+  destroi_semaforos();
 
   return 0;
 }

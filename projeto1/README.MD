@@ -1,22 +1,20 @@
-# Projeto 1: Simulação da Avaliação de Padawans por Yoda
+# Projeto 1 - Simulação de Avaliação de Padawans
 
 ---
 
 ## Descrição
 
-Este projeto simula um cenário inspirado no universo de Star Wars, onde Padawans passam por um processo de avaliação conduzido pelo Mestre Yoda para se tornarem Jedi. O programa utiliza conceitos de programação concorrente, implementando threads e semáforos para sincronizar as interações entre Padawans, Yoda e o público que assiste aos testes.
+Este programa simula um sistema de avaliação de Padawans que são avaliados pelo Mestre Yoda, com a presença de espectadores assistindo aos testes. O programa utiliza threads e semáforos para gerenciar a sincronização entre os Padawans, Yoda e o público, garantindo que as interações ocorram de forma correta e coordenada.
 
-### Bibliotecas Utilizadas
+### Bibliotecas usadas
 
-- `pthread.h`
-- `semaphore.h`
 - `stdio.h`
 - `stdlib.h`
+- `pthread.h`
+- `semaphore.h`
 - `unistd.h`
 
----
-
-## Compilação
+### Compilação
 
 Para compilar o programa, utilize o comando:
 
@@ -24,19 +22,7 @@ Para compilar o programa, utilize o comando:
 make co
 ```
 
-Este comando irá compilar todos os módulos e gerar o executável `main`.
-
-### Limpeza dos Arquivos Compilados
-
-Para limpar os arquivos objeto e o executável gerado, utilize:
-
-```bash
-make cl
-```
-
----
-
-## Uso
+### Uso
 
 Para executar o programa, utilize o comando:
 
@@ -44,122 +30,95 @@ Para executar o programa, utilize o comando:
 make r
 ```
 
-O programa irá iniciar a simulação, exibindo as interações entre Padawans, Yoda e o público durante o processo de avaliação.
-
-### Exemplo de Saída
-
-```bash
-make r
-Padawan 0 está aguardando para entrar no salão
-Yoda liberou a entrada do Padawan
-Yoda liberou a entrada do público, 5 vagas
-Padawan 0 entrou no salão para realizar os testes
-Padawan 0 está cumprimentando os mestres avaliadores
-Espectador 0 está aguardando para entrar no salão
-Espectador 1 está aguardando para entrar no salão
-Padawan 0 terminou de cumprimentar os mestres avaliadores
-Padawan 0 está pronto para ser avaliado
-Yoda está iniciando os testes
-Yoda está avaliando o Padawan
-Yoda avaliou o Padawan com nota 85/100
-Padawn aprovado 👍
-Padawan 0 está aguardando a avaliação
-Padawan 0 recebeu a avaliação
-Padawan 0 está realizando a avaliação
-...
-```
-
 ---
 
 ## Funcionamento
 
-### Visão Geral
-
-O programa cria threads para representar:
-
-- **Yoda**: Responsável por avaliar os Padawans.
-- **Padawans**: Alunos que desejam se tornar Jedi.
-- **Público**: Espectadores que assistem às avaliações.
-
-A interação entre essas entidades é sincronizada usando semáforos para controlar o acesso aos recursos compartilhados e garantir a ordem correta das operações.
-
-### Estrutura do Código
-
-- **main.c**: Ponto de entrada do programa. Inicializa os semáforos e cria as threads para Yoda, Padawans e Público.
-- **Modules**:
-  - **common**:
-    - `globals.h` e `main.c`: Declaração e definição dos semáforos e variáveis globais usadas para a sincronização.
-  - **padawan**:
-    - `interface.h` e `main.c`: Contém a lógica das ações realizadas pelos Padawans durante o teste.
-  - **publico**:
-    - `interface.h` e `main.c`: Contém a lógica do comportamento dos espectadores do público.
-  - **yoda**:
-    - `interface.h` e `main.c`: Contém a lógica das ações de Yoda durante a avaliação dos Padawans.
-
-### Detalhamento das Interações
-
 1. **Inicialização**:
 
-   - O programa define o número de Padawans (`NUM_PADAWAN`) e de espectadores (`NUM_PUBLICO`).
-   - Inicializa os semáforos e variáveis globais necessárias para a sincronização.
+   - O programa inicia inicializando os semáforos que serão utilizados para sincronização entre as threads.
 
 2. **Criação das Threads**:
 
-   - São criadas threads para Yoda, cada Padawan e cada espectador do público.
-   - As threads dos Padawans e do Público recebem seus identificadores como argumentos.
+   - Cria-se uma thread para o Mestre Yoda.
+   - Cria-se um conjunto de threads para os Padawans, de acordo com a constante `NUM_PADAWAN`.
+   - Cria-se um conjunto de threads para o público, de acordo com a constante `NUM_PUBLICO`.
 
-3. **Execução das Threads**:
+3. **Processo dos Padawans**:
 
-   - **Yoda**:
-
-     - Controla o fluxo de entrada dos Padawans e do público no salão.
-     - Aguarda que o Padawan esteja pronto para iniciar a avaliação.
-     - Realiza a avaliação e determina o resultado (aprovado ou reprovado).
-     - Caso o Padawan seja aprovado, ocorre o corte da trança (símbolo da promoção a Jedi).
-     - Garante que todas as etapas sejam sincronizadas corretamente usando semáforos.
-
-   - **Padawan**:
-
-     - Aguarda autorização para entrar no salão.
+   - Cada Padawan executa a função `padawan()`, que representa seu comportamento:
+     - Aguarda a liberação para entrar no salão.
      - Cumprimenta os mestres avaliadores.
-     - Prepara-se para a avaliação e aguarda sua vez.
-     - Realiza a avaliação e aguarda o resultado.
-     - Se aprovado, interage com Yoda para o corte da trança.
-     - Sai do salão após o término do processo.
-
-   - **Público**:
-
-     - Aguarda disponibilidade para entrar no salão, respeitando o limite de vagas.
-     - Assiste aos testes quando permitido.
+     - Aguarda a avaliação.
+     - Realiza a avaliação.
+     - Aguarda o resultado da avaliação.
+     - Se aprovado, aguarda pelo corte de trança.
+     - Se reprovado, cumprimenta Yoda.
      - Sai do salão.
 
-4. **Sincronização**:
+4. **Processo do Público**:
 
-   - **Semáforos** são utilizados para controlar o acesso e a sequência das ações:
+   - Cada espectador executa a função `publico()`, que representa seu comportamento:
+     - Aguarda a liberação para entrar no salão.
+     - Assiste aos testes enquanto há Padawans restantes.
+     - Sai do salão.
 
-     - `sem_padawan_entrada`: Controla quando o Padawan pode entrar no salão.
-     - `sem_publico_entrada`: Controla quando os espectadores podem entrar.
-     - `sem_padawan_pronto`: Indica que o Padawan está pronto para ser avaliado.
-     - `sem_avaliacao_andamento`: Sincroniza o início da avaliação com o Padawan e o público.
-     - `sem_avaliacao_resultado`: Controla a comunicação do resultado ao Padawan.
-     - `sem_aguarda_corte_trança`: Utilizado quando o Padawan é aprovado e aguarda o corte da trança.
-     - `sem_padawan_saiu`: Indica que o Padawan saiu do salão.
-     - `sem_vagas_publico_utilizadas`: Controla o número de vagas ocupadas pelo público.
+5. **Processo de Yoda**:
 
-5. **Finalização**:
+   - A thread de Yoda executa a função `yoda()`, que coordena todo o processo:
+     - Libera a entrada dos Padawans e do público, controlando o número permitido de cada grupo.
+     - Inicia os testes após um período de espera.
+     - Avalia cada Padawan, decidindo aleatoriamente se ele é aprovado ou reprovado.
+     - Anuncia o resultado para cada Padawan.
+     - Dependendo do resultado, realiza o corte de trança ou cumprimenta o Padawan.
+     - Ao final, faz um discurso baseado no número de Padawans aprovados.
 
-   - O programa aguarda a conclusão das threads dos Padawans.
-   - Yoda imprime uma mensagem final baseada no desempenho dos Padawans.
-   - As threads do público são canceladas, pois seu trabalho termina com a avaliação dos Padawans.
+6. **Sincronização**:
 
-### Mensagens de Yoda
+   - O programa utiliza semáforos para controlar o acesso ao salão, a interação com Yoda, o início dos testes e para garantir que as ações ocorram na ordem correta.
 
-Ao final das avaliações, Yoda exibe uma mensagem que varia de acordo com o número de Padawans aprovados:
+7. **Finalização**:
+   - Após Yoda finalizar o dia, o programa encerra todas as threads e destrói os semáforos utilizados.
 
-- **Todos aprovados**: Mensagem de grande orgulho e emoção.
-- **Nenhum aprovado**: Expressa tristeza e desapontamento, mas encoraja a persistência.
-- **Mais da metade aprovados**: Mistura de orgulho pelos aprovados e encorajamento aos demais.
-- **Menos da metade aprovados**: Reconhece os aprovados, mas destaca o desapontamento com os reprovados.
+---
+
+## Constantes
+
+As constantes que podem ser ajustadas no arquivo `globals.h` são:
+
+- `NUM_PADAWAN`: Número total de Padawans que participarão dos testes (padrão: 7).
+- `NUM_PUBLICO`: Número total de espectadores (padrão: 10).
+- `NR_PADAWAN_PERMITIDO`: Número de Padawans permitidos no salão ao mesmo tempo (padrão: 4).
+- `NR_PUBLICO_PERMITIDO`: Número de espectadores permitidos no salão ao mesmo tempo (padrão: 5).
+
+---
+
+## Estrutura de Pastas
+
+- `main.c`: Arquivo principal que inicia o programa.
+- `Makefile`: Script para facilitar a compilação, execução e limpeza dos arquivos.
+
+- `modules/`:
+  - `common/`:
+    - `globals.h`: Declaração de semáforos, variáveis globais e protótipos das funções comuns.
+    - `main.c`: Implementação das funções comuns e inicialização/destruição dos semáforos.
+  - `padawan/`:
+    - `interface.h`: Prototipação da função `padawan()`.
+    - `main.c`: Implementação das ações realizadas pelos Padawans.
+  - `publico/`:
+    - `interface.h`: Prototipação da função `publico()`.
+    - `main.c`: Implementação das ações realizadas pelos espectadores.
+  - `yoda/`:
+    - `interface.h`: Prototipação da função `yoda()`.
+    - `main.c`: Implementação das ações realizadas pelo Mestre Yoda.
+
+---
+
+## Observações
+
+- Para alterar o número de Padawans ou espectadores, ajuste as constantes em `globals.h` e recompile o programa.
+- O programa não requer entrada do usuário durante a execução.
+- As mensagens impressas no console refletem as ações e interações entre as threads, permitindo acompanhar o fluxo da simulação.
 
 ---
 
@@ -170,4 +129,6 @@ João Vitor Girotto
 
 ## Data
 
-15/12/2024
+29/11/2023
+
+---
