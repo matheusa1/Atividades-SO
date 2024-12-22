@@ -2,26 +2,36 @@
 #include "interface.h"
 #include <semaphore.h>
 
+// --------------------------- FUNÇÕES DE AÇÃO DO YODA ---------------------------
+
+// Função que libera a entrada para Padawans e público.
+// Saída: Mensagens na tela informando que Yoda liberou o acesso no salão.
 void libera_entrada() {
   padawans_no_salao = 0;
 
   printf("Yoda liberou a entrada dos Padawans, %d vagas\n",
          NR_PADAWAN_PERMITIDO);
-
+  // Libera os semáforos para os Padawans entrarem
   for (int i = 0; i < NR_PADAWAN_PERMITIDO; i++) {
     sem_post(&sem_padawan_entrada);
   }
 
   int vagas_publico = NR_PUBLICO_PERMITIDO - vagas_publico_utilizadas;
 
+  // Marca a entrada como disponível
   entrada_disponivel = 1;
+
+  // Libera os semáforos para o público entrar
   printf("Yoda liberou a entrada do público, %d vagas\n", vagas_publico);
   for (int i = 0; i < vagas_publico; i++) {
     sem_post(&sem_publico_entrada);
   }
 }
 
+// Função que tranca o salão e inicia os testes.
+// Saída: Mensagens na tela informando que os testes foram iniciados.
 void inicia_testes() {
+  // Marca a entrada como indisponível
   entrada_disponivel = 0;
   printf("Yoda iniciou os testes\n");
 
@@ -29,6 +39,7 @@ void inicia_testes() {
     sem_post(&sem_avaliacao_andamento);
   }
 
+   // Libera os semáforos dos Padawans presentes no salão para iniciar os testes
   for (int i = 0; i < padawans_no_salao; i++) {
     int id_padawan = fila_padawans[i];
     sem_post(&sem_padawans[id_padawan]);
@@ -36,6 +47,9 @@ void inicia_testes() {
   }
 }
 
+// Função para avaliar o Padawan e dar sua nota.
+// Parâmetro: Id do Padawan que está sendo avaliado.
+// Saída: Mensagens na tela informando que a avaliação foi feita, e salva o resultado da avaliação em um vetor.
 void avalia_padawan(int id) {
   printf("Yoda está avaliando Padawan %d\n", id);
 
@@ -50,6 +64,9 @@ void avalia_padawan(int id) {
   printf("Yoda avaliou Padawan %d\n", id);
 }
 
+// Função para revelar os resultados dos Padawans.
+// Parâmetro: Id do Padawan que está sendo avaliado.
+// Saída: Retorna o resultado das avaliações.
 int anuncia_resultado(int id) {
   printf("Yoda irá anunciar o resultado do Padawan %d\n", id);
   if (resultado_padawans[id] == 1) {
@@ -57,29 +74,43 @@ int anuncia_resultado(int id) {
   } else {
     printf("Padawan %d foi reprovado\n", id);
   }
+  // Libera o semáforo para permitir que o Padawan prossig
   sem_post(&sem_padawans[id]);
   sem_wait(&sem_padawans_output[id]);
   return resultado_padawans[id];
 }
 
+// Função para cumprimentar os Padawans reprovados.
+// Parâmetro: Id do Padawan que foi reprovado.
+// Saída: Mensagem no terminal informando que o cumprimento foi feito.
 void cumprimenta_Padawan(int id) {
   printf("Yoda está cumprimentando Padawan %d\n", id);
+  // Sincroniza com o semáforo do Padawan
   sem_post(&sem_padawans[id]);
   sem_wait(&sem_padawans_output[id]);
 }
 
+// Função que corta a trança do Padawan aprovado
+// Parâmetro: Id do Padawan aprovado.
+// Saída: Mensagem no terminal informando que o corte está sendo realizado.
 void corta_tranca(int id) {
   printf("Yoda está cortando a trança do Padawan %d\n", id);
+  // Sincroniza com o semáforo do Padawan
   sem_post(&sem_padawans[id]);
   sem_wait(&sem_padawans_output[id]);
 }
 
+// --------------------------- FUNÇÃO PRINCIPAL DA THREAD YODA ---------------------------
+
 void *yoda(void *args) {
+  
+  // Enquanto houver Padawans restantes para avaliar
   while (padawans_restantes > 0) {
 
     libera_entrada();
     sleep(5);
 
+     // Exibe a fila dos Padawans por ordem de chegada
     printf(
         "Fila de Padawans por ordem de chegada para realização dos testes: [");
     for (int i = 0; i < padawans_no_salao; i++) {
@@ -88,6 +119,7 @@ void *yoda(void *args) {
     printf("\b\b]\n");
 
     inicia_testes();
+    // Avalia cada Padawan presente no salão
     for (int i = 0; i < padawans_no_salao; i++) {
       avalia_padawan(fila_padawans[i]);
       int resultado = anuncia_resultado(fila_padawans[i]);
@@ -98,6 +130,9 @@ void *yoda(void *args) {
       }
     }
   }
+
+  // Mensagens finais após todos os Padawans serem avaliados
+  // A mensagem será de acordo com o número de Padawans aprovados
 
   printf("Yoda finalizou o dia\n");
 
