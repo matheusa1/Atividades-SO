@@ -19,10 +19,8 @@ int main() {
 
   for (int i = 1; i <= NUM_PADAWAN; i++) {
     padawan_ids[i - 1] = i;
-    // int numero_aleatorio = rand() % 1000;
     pthread_create(&padawan_thread[i - 1], NULL, padawan,
                    (void *)&padawan_ids[i - 1]);
-    // usleep(numero_aleatorio);
   }
 
   for (int i = 1; i <= NUM_PUBLICO; i++) {
