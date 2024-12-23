@@ -9,8 +9,7 @@
 void libera_entrada() {
   padawans_no_salao = 0;
 
-  printf("Yoda liberou a entrada dos Padawans, %d vagas\n",
-         NR_PADAWAN_PERMITIDO);
+  printf("Yoda liberou a entrada dos Padawans por 5 segundos\n");
   // Libera os semáforos para os Padawans entrarem
   for (int i = 0; i < NR_PADAWAN_PERMITIDO; i++) {
     sem_post(&sem_padawan_entrada);
@@ -31,6 +30,10 @@ void libera_entrada() {
 // Função que tranca o salão e inicia os testes.
 // Saída: Mensagens na tela informando que os testes foram iniciados.
 void inicia_testes() {
+  // Verifica se tem ao menos um padawan no salão antes de iniciar o teste 
+  if(padawans_no_salao <= 0 && padawans_restantes > 0){
+       sleep(2);
+  }
   // Marca a entrada como indisponível
   entrada_disponivel = 0;
   printf("Yoda iniciou os testes\n");
@@ -108,6 +111,7 @@ void *yoda(void *args) {
   while (padawans_restantes > 0) {
 
     libera_entrada();
+    // Coloca o Yoda para dormir por 5 segundos para os padawans entrarem no salão
     sleep(5);
 
      // Exibe a fila dos Padawans por ordem de chegada
