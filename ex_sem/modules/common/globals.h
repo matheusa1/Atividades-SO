@@ -10,7 +10,7 @@
 #define NUM_PUBLICO 10
 #define NUM_PADAWAN 7
 #define NR_PUBLICO_PERMITIDO 5
-#define NR_PADAWAN_PERMITIDO 4
+#define NR_PADAWAN_PERMITIDO NUM_PADAWAN
 
 // Declaração dos semáforos
 extern sem_t sem_publico_entrada;

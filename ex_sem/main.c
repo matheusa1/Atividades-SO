@@ -14,14 +14,13 @@ int main() {
 
   int padawan_ids[NUM_PADAWAN];
   int publico_ids[NUM_PUBLICO];
-  
+
   pthread_create(&yoda_thread, NULL, yoda, NULL);
 
   for (int i = 1; i <= NUM_PADAWAN; i++) {
     padawan_ids[i - 1] = i;
-    int numero_aleatorio = rand() % 1000;
-    pthread_create(&padawan_thread[i - 1], NULL, padawan, (void *)&padawan_ids[i - 1]);
-    usleep(numero_aleatorio);
+    pthread_create(&padawan_thread[i - 1], NULL, padawan,
+                   (void *)&padawan_ids[i - 1]);
   }
 
   for (int i = 1; i <= NUM_PUBLICO; i++) {
@@ -29,7 +28,6 @@ int main() {
     pthread_create(&publico_thread[i - 1], NULL, publico,
                    (void *)&publico_ids[i - 1]);
   }
-
 
   pthread_join(yoda_thread, NULL);
 
