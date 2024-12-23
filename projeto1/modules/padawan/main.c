@@ -3,16 +3,19 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-
-// --------------------------- FUNÇÕES DE AÇÃO DO PADAWAN ---------------------------
+// --------------------------- FUNÇÕES DE AÇÃO DO PADAWAN
+// ---------------------------
 
 // Função que controla a entrada do Padawan no salão.
 // Parâmetro: `id` - identificador da thread do Padawan.
 // Saída: Mensagens informando quando o Padawan aguarda e entra no salão.
 void entra_salao_padawan(int id) {
   printf("Padawan %d está aguardando para entrar no salão\n", id);
-   // Aguarda permissão para entrar no salão
-  sem_wait(&sem_padawan_entrada);
+  // Aguarda permissão para entrar no salão
+  do {
+    sem_wait(&sem_padawan_entrada);
+  } while (entrada_disponivel == 0);
+
   printf("Padawan %d entrou no salão para realizar os testes\n", id);
 
   // Bloqueia o acesso às vagas para atualizar a fila de Padawans no salão.
@@ -56,8 +59,8 @@ void realiza_avaliacao(int id) {
 
 // Função que faz o Padawan aguardar o resultado da avaliação.
 // Parâmetro: `id` - identificador da thread do Padawan.
-// Saída: Mensagens indicando que o Padawan está aguardando e recebeu o resultado.
-// Retorno: Resultado da avaliação (1 - aprovado, 2 - reprovado).
+// Saída: Mensagens indicando que o Padawan está aguardando e recebeu o
+// resultado. Retorno: Resultado da avaliação (1 - aprovado, 2 - reprovado).
 int aguarda_resultado(int id) {
   printf("Padawan %d está aguardando o resultado da avaliação\n", id);
   // Aguarda o resultado da avaliação.
@@ -103,7 +106,8 @@ void sai_salao_padawan(int id) {
   sem_post(&sem_padawans_restantes);
 }
 
-// --------------------------- FUNÇÃO PRINCIPAL DA THREAD PADAWAN ---------------------------
+// --------------------------- FUNÇÃO PRINCIPAL DA THREAD PADAWAN
+// ---------------------------
 
 // Função principal da thread do Padawan que coordena todas as etapas.
 // Parâmetro: `args` - ponteiro para o identificador do Padawan.
@@ -112,6 +116,8 @@ void sai_salao_padawan(int id) {
 void *padawan(void *args) {
   // Obtém o ID do Padawan a partir dos argumentos.
   int id = *((int *)args);
+
+  sleep(rand() % 10);
 
   entra_salao_padawan(id);
   cumprimenta_mestres_avaliadores(id);
