@@ -2,17 +2,19 @@
 #include "interface.h"
 #include <semaphore.h>
 
-// --------------------------- FUNÇÕES DE AÇÃO DO YODA ---------------------------
+// --------------------------- FUNÇÕES DE AÇÃO DO YODA
+// ---------------------------
 
 // Função que libera a entrada para Padawans e público.
 // Saída: Mensagens na tela informando que Yoda liberou o acesso no salão.
 void libera_entrada() {
   padawans_no_salao = 0;
 
-  printf("Yoda liberou a entrada dos Padawans, %d vagas\n",
-         NR_PADAWAN_PERMITIDO);
+  printf("Yoda liberou a entrada dos Padawans por 5 segundos\n");
   // Libera os semáforos para os Padawans entrarem
-  for (int i = 0; i < NR_PADAWAN_PERMITIDO; i++) {
+  //
+
+  for (int i = 0; i < padawans_restantes; i++) {
     sem_post(&sem_padawan_entrada);
   }
 
@@ -39,7 +41,7 @@ void inicia_testes() {
     sem_post(&sem_avaliacao_andamento);
   }
 
-   // Libera os semáforos dos Padawans presentes no salão para iniciar os testes
+  // Libera os semáforos dos Padawans presentes no salão para iniciar os testes
   for (int i = 0; i < padawans_no_salao; i++) {
     int id_padawan = fila_padawans[i];
     sem_post(&sem_padawans[id_padawan]);
@@ -49,7 +51,8 @@ void inicia_testes() {
 
 // Função para avaliar o Padawan e dar sua nota.
 // Parâmetro: Id do Padawan que está sendo avaliado.
-// Saída: Mensagens na tela informando que a avaliação foi feita, e salva o resultado da avaliação em um vetor.
+// Saída: Mensagens na tela informando que a avaliação foi feita, e salva o
+// resultado da avaliação em um vetor.
 void avalia_padawan(int id) {
   printf("Yoda está avaliando Padawan %d\n", id);
 
@@ -100,17 +103,24 @@ void corta_tranca(int id) {
   sem_wait(&sem_padawans_output[id]);
 }
 
-// --------------------------- FUNÇÃO PRINCIPAL DA THREAD YODA ---------------------------
+// --------------------------- FUNÇÃO PRINCIPAL DA THREAD YODA
+// ---------------------------
 
 void *yoda(void *args) {
-  
+
   // Enquanto houver Padawans restantes para avaliar
   while (padawans_restantes > 0) {
 
-    libera_entrada();
-    sleep(5);
+    // Verifica se tem ao menos um padawan no salão antes de iniciar o teste
+    while (padawans_no_salao == 0) {
 
-     // Exibe a fila dos Padawans por ordem de chegada
+      libera_entrada();
+      // Coloca o Yoda para dormir por 5 segundos para os padawans entrarem no
+      // salão
+      sleep(5);
+    }
+
+    // Exibe a fila dos Padawans por ordem de chegada
     printf(
         "Fila de Padawans por ordem de chegada para realização dos testes: [");
     for (int i = 0; i < padawans_no_salao; i++) {
@@ -129,6 +139,8 @@ void *yoda(void *args) {
         cumprimenta_Padawan(fila_padawans[i]);
       }
     }
+
+    padawans_no_salao = 0;
   }
 
   // Mensagens finais após todos os Padawans serem avaliados

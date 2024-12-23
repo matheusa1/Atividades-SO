@@ -1,4 +1,4 @@
-# Projeto 1 - Simulação de Avaliação de Padawans
+# Projeto 1 - Simulação de Avaliação de Padawans Utilizando Semáforos
 
 ---
 
@@ -124,11 +124,11 @@ As constantes que podem ser ajustadas no arquivo `globals.h` são:
 
 ## Autor
 
-Matheus Santos de Andrade
-João Vitor Girotto
+1. Matheus Santos de Andrade
+2. João Vitor Girotto
 
 ## Data
 
-29/11/2023
+23/12/2024
 
 ---
