@@ -4,12 +4,11 @@
 #include <string.h>
 
 #include "core/modules/FAT/interface.h"
+#include "core/modules/commands/attr/interface.h"
+#include "core/modules/commands/cd/interface.h"
 #include "core/modules/commands/ls/interface.h"
+#include "core/modules/commands/rename/interface.h"
 #include "core/modules/common/interface.h"
-
-#define MAX_PATH_DEPTH 256
-uint32_t dir_stack[MAX_PATH_DEPTH];
-int stack_top = -1;
 
 // Função para exibir informações básicas da FAT32
 void show_info(Fat32Image *image) {
@@ -140,7 +139,7 @@ int main(int argc, char *argv[]) {
   image.fat1 = fat1;
 
   // diretório inicial
-  uint32_t current_dir = image.boot_sector.BPB_RootClus;
+  current_dir = image.boot_sector.BPB_RootClus;
   char currentPath[256] = "/";
 
   // Loop para o shell interativo
@@ -164,64 +163,13 @@ int main(int argc, char *argv[]) {
       show_cluster(&image, cluster_num);
     } else if (strncmp(command, "cd", 2) == 0) {
       // “cd ” tem 3 caracteres, então o restante é o nome do diretório
-      char *dirname = &command[3];
-      if (strlen(dirname) == 0) {
-        fprintf(stderr, "Uso: cd <dirname>\n");
-        continue;
-      }
-
-      // Se o usuário digitar "cd /", volta para a raiz
-      if (strcmp(dirname, "/") == 0) {
-        current_dir = image.boot_sector.BPB_RootClus;
-        strcpy(currentPath, "/");
-        stack_top = -1; // limpa o histórico
-        continue;
-      }
-
-      // Se for "cd ..", volta para o diretório pai (se possível)
-      if (strcmp(dirname, "..") == 0) {
-        if (stack_top >= 0) {
-          current_dir = dir_stack[stack_top]; // recupera o diretório anterior
-          stack_top--;                        // remove da pilha
-
-          // Atualiza currentPath: remove o último segmento após a última '/'.
-          char *lastSlash = strrchr(currentPath, '/');
-          if (lastSlash != NULL && lastSlash != currentPath) {
-            *lastSlash = '\0';
-          } else {
-            strcpy(currentPath, "/");
-          }
-        } else {
-          // Se a pilha estiver vazia, já estamos na raiz.
-          current_dir = image.boot_sector.BPB_RootClus;
-          strcpy(currentPath, "/");
-        }
-        continue;
-      }
-
-      // Agora procuramos o cluster do subdiretório
-      uint32_t newCluster =
-          find_directory_cluster(&image, current_dir, dirname);
-      if (newCluster == 0xFFFFFFFF) {
-        fprintf(stderr, "Diretório '%s' não encontrado.\n", dirname);
-      } else {
-        if (stack_top < MAX_PATH_DEPTH - 1) {
-          dir_stack[++stack_top] = current_dir;
-        } else {
-          fprintf(stderr, "Limite de histórico de diretórios atingido.\n");
-        }
-        current_dir = newCluster;
-
-        // Atualiza o caminho para exibição
-        if (strcmp(currentPath, "/") == 0) {
-          snprintf(currentPath, sizeof(currentPath), "/%s", dirname);
-        } else {
-          strncat(currentPath, "/",
-                  sizeof(currentPath) - strlen(currentPath) - 1);
-          strncat(currentPath, dirname,
-                  sizeof(currentPath) - strlen(currentPath) - 1);
-        }
-      }
+      cdCommand(command, &image, currentPath);
+    } else if (strncmp(command, "pwd", 3) == 0) {
+      printf("%s\n", currentPath);
+    } else if (strncmp(command, "attr", 4) == 0) {
+      attrCommand(command, &image, current_dir);
+    } else if (strncmp(command, "rename", 6) == 0) {
+      renameCommand(command, &image, current_dir);
     }
     // Comando "exit": encerra o shell
     else if (strcmp(command, "exit") == 0) {

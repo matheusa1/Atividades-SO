@@ -3,6 +3,11 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+uint32_t dir_stack[MAX_PATH_DEPTH];
+int stack_top = -1;
+char currentPath[256] = "/";
+uint32_t current_dir;
+
 uint32_t get_next_cluster(Fat32Image *img, uint32_t cluster) {
   // Quantas entradas de 32 bits há na FAT1?
   uint32_t maxClusters =
@@ -114,8 +119,6 @@ uint32_t find_directory_cluster(Fat32Image *img, uint32_t start_cluster,
       // Converte o nome “8.3” para string legível
       char name[13];
       convert_to_83(entry[i].DIR_Name, name);
-
-      printf("Dir: %s, buscado: %s\n", name, dirname);
 
       // Comparação simples, case-sensitiva:
       // Se quiser ignorar maiúsculas e minúsculas, faça tolower ou algo
