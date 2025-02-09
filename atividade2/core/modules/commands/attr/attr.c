@@ -34,6 +34,9 @@ void attrCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
     fprintf(stderr, "Uso: attr <nome_arquivo>\n");
     return;
   }
+
+  arg = fileToUpper(arg);
+
   // Copia o nome do arquivo (até 12 caracteres para nome 8.3)
   strncpy(filename, arg, 12);
   filename[12] = '\0';

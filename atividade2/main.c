@@ -6,68 +6,15 @@
 #include "core/modules/FAT/interface.h"
 #include "core/modules/commands/attr/interface.h"
 #include "core/modules/commands/cd/interface.h"
+#include "core/modules/commands/cp/interface.h"
+#include "core/modules/commands/fat_cluster/interface.h"
+#include "core/modules/commands/info/interface.h"
 #include "core/modules/commands/ls/interface.h"
+#include "core/modules/commands/mkdir/interface.h"
 #include "core/modules/commands/rename/interface.h"
+#include "core/modules/commands/rm/interface.h"
+#include "core/modules/commands/touch/interface.h"
 #include "core/modules/common/interface.h"
-
-// Função para exibir informações básicas da FAT32
-void show_info(Fat32Image *image) {
-  printf("OEM Name: %s\n", image->boot_sector.BS_OEMName);
-  printf("Bytes per sector: %d\n", image->boot_sector.BPB_BytsPerSec);
-  printf("Sectors per cluster: %d\n", image->boot_sector.BPB_SecPerClus);
-  printf("Reserved sectors: %d\n", image->boot_sector.BPB_RsvdSecCnt);
-  printf("Number of FATs: %d\n", image->boot_sector.BPB_NumFATs);
-  printf("Sectors per FAT: %d\n", image->boot_sector.BPB_SecPerTrk);
-  printf("Root cluster: %d\n", image->boot_sector.BPB_RootClus);
-}
-
-// Função para exibir o conteúdo de um cluster no formato de texto
-void show_cluster(Fat32Image *image, uint32_t cluster_num) {
-  uint32_t fat_size = image->boot_sector.BPB_FATSz32;
-  uint32_t reserved_sectors = image->boot_sector.BPB_RsvdSecCnt;
-  uint32_t sector_size = image->boot_sector.BPB_BytsPerSec;
-  uint32_t cluster_size = compute_cluster_size(image);
-
-  // Offset do início da área de dados
-  uint32_t fat_offset = reserved_sectors * sector_size;
-  // Tamanho total de cada FAT, em bytes
-  uint32_t fat_bytes = fat_size * sector_size;
-
-  // Data offset = inicio da área de dados
-  uint32_t data_offset =
-      fat_offset + (image->boot_sector.BPB_NumFATs * fat_bytes);
-  // Offset em bytes do cluster que vamos ler
-  uint32_t cluster_offset = data_offset + (cluster_num - 2) * cluster_size;
-
-  // Move o ponteiro para o início do cluster
-  if (fseek(image->file, cluster_offset, SEEK_SET) != 0) {
-    printf("Erro: Não foi possível buscar o cluster %d.\n", cluster_num);
-    return;
-  }
-
-  // Lê o cluster no buffer
-  uint8_t *buffer = malloc(cluster_size); // mudamos para cluster_size
-  if (!buffer) {
-    printf("Erro de alocação de memória.\n");
-    return;
-  }
-  if (fread(buffer, cluster_size, 1, image->file) != 1) {
-    printf("Erro: Não foi possível ler o cluster %d.\n", cluster_num);
-    free(buffer);
-    return;
-  }
-
-  // Exibe o conteúdo em formato texto
-  for (int i = 0; i < (int)cluster_size; i++) {
-    // Exibe caracteres imprimíveis (ASCII 32..126) ou '.' para os
-    // não-imprimíveis
-    printf("%c", (buffer[i] >= 32 && buffer[i] <= 126) ? buffer[i] : '.');
-    if ((i + 1) % 64 == 0)
-      printf("\n");
-  }
-  printf("\n");
-  free(buffer);
-}
 
 int main(int argc, char *argv[]) {
   // Verifica se o nome da imagem foi fornecido como argumento
@@ -144,6 +91,7 @@ int main(int argc, char *argv[]) {
 
   // Loop para o shell interativo
   char command[256];
+  // char* pwd = pwd_command(directory);
   while (1) {
     printf("fatshell:[img%s] $ ", currentPath);
     fgets(command, sizeof(command), stdin);
@@ -153,7 +101,7 @@ int main(int argc, char *argv[]) {
 
     // Comando "info": exibe informações do disco
     if (strcmp(command, "info") == 0) {
-      show_info(&image);
+      Fat_show_info(&image);
     } else if (strcmp(command, "ls") == 0) {
       list_directory(current_dir, image);
     }
@@ -170,9 +118,16 @@ int main(int argc, char *argv[]) {
       attrCommand(command, &image, current_dir);
     } else if (strncmp(command, "rename", 6) == 0) {
       renameCommand(command, &image, current_dir);
-    }
-    // Comando "exit": encerra o shell
-    else if (strcmp(command, "exit") == 0) {
+    } else if (strncmp(command, "touch", 5) == 0) {
+      touchCommand(command, &image, current_dir);
+    } else if (strncmp(command, "mkdir", 5) == 0) {
+      mkdirCommand(command, &image, current_dir);
+    } else if (strncmp(command, "rm", 2) == 0) {
+      rm_command(command, &image, current_dir);
+      // Comando "exit": encerra o shell
+    } else if (strncmp(command, "cp", 2) == 0) {
+      cpCommand(command, &image, current_dir);
+    } else if (strcmp(command, "exit") == 0) {
       break;
     } else {
       printf("Unknown command: %s\n", command);

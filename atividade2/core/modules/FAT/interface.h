@@ -48,7 +48,7 @@ typedef struct __attribute__((packed, aligned(1))) {
 } FSInfoStruct;
 
 // Estrutura para armazenar informações da imagem aberta
-typedef struct {
+typedef struct __attribute__((packed, aligned(1))){
     FILE *file; // Ponteiro para o arquivo da imagem
     FAT32_BootSector boot_sector; // Estrutura com informações do setor de inicialização
     FSInfoStruct fs_info; // Estrutura com informações do setor FSInfo

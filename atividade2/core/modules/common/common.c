@@ -1,5 +1,6 @@
 #include "../DirEntry/interface.h"
 #include "interface.h"
+#include <ctype.h>
 #include <stdlib.h>
 #include <sys/types.h>
 
@@ -150,4 +151,96 @@ uint32_t find_directory_cluster(Fat32Image *img, uint32_t start_cluster,
     cluster = next_cluster;
   }
   // Em teoria, não chega aqui; loop while(1) é encerrado antes.
+}
+
+void string_to_FAT83(const char *input, char out[11]) {
+  // Inicializa com espaços (caractere 0x20)
+  for (int i = 0; i < 11; i++) {
+    out[i] = ' ';
+  }
+  // Cria uma cópia da string em caixa alta
+  char temp[256];
+  strncpy(temp, input, sizeof(temp) - 1);
+  temp[sizeof(temp) - 1] = '\0';
+  for (int i = 0; temp[i]; i++) {
+    temp[i] = toupper((unsigned char)temp[i]);
+  }
+  // Procura o ponto para separar nome e extensão, se existir
+  char *dot = strchr(temp, '.');
+  int name_len = 0, ext_len = 0;
+  if (dot) {
+    name_len = dot - temp;
+    ext_len = strlen(dot + 1);
+  } else {
+    name_len = strlen(temp);
+    ext_len = 0;
+  }
+  if (name_len > 8)
+    name_len = 8;
+  if (ext_len > 3)
+    ext_len = 3;
+
+  // Copia o nome
+  for (int i = 0; i < name_len; i++) {
+    out[i] = temp[i];
+  }
+  // Copia a extensão
+  for (int i = 0; i < ext_len; i++) {
+    out[8 + i] = dot ? dot[1 + i] : ' ';
+  }
+}
+
+uint16_t dateToFatDate(struct tm *lt) {
+  int year = lt->tm_year + 1900; // tm_year conta desde 1900
+  int month = lt->tm_mon + 1;    // tm_mon vai de 0 a 11
+  int day = lt->tm_mday;
+
+  uint16_t fat_date = ((year - 1980) << 9) | (month << 5) | day;
+
+  return fat_date;
+}
+
+uint16_t timeToFatTime(struct tm *lt) {
+  int hour = lt->tm_hour;
+  int minute = lt->tm_min;
+  int second = lt->tm_sec / 2; // segundos divididos por 2
+
+  uint16_t fat_time = (hour << 11) | (minute << 5) | second;
+
+  return fat_time;
+}
+
+/**
+ * Atualiza (escreve) a FAT no disco.
+ * Se BPB_NumFATs == 2, também escreverá na segunda FAT.
+ */
+void write_fat(Fat32Image *img) {
+  // Calcula onde começa a FAT1
+  uint32_t reserved_sectors = img->boot_sector.BPB_RsvdSecCnt;
+  uint32_t sector_size = img->boot_sector.BPB_BytsPerSec;
+  uint32_t fat_size_bytes = img->boot_sector.BPB_FATSz32 * sector_size;
+
+  // Volta para o início da FAT1 e escreve
+  fseek(img->file, reserved_sectors * sector_size, SEEK_SET);
+  fwrite(img->fat1, 1, fat_size_bytes, img->file);
+
+  // Se houver segunda FAT (geralmente existe), escreve nela também
+  if (img->boot_sector.BPB_NumFATs == 2) {
+    // Posição onde começa a FAT2
+    fseek(img->file, reserved_sectors * sector_size + fat_size_bytes, SEEK_SET);
+    fwrite(img->fat1, 1, fat_size_bytes, img->file);
+  }
+  fflush(img->file);
+}
+
+char *fileToUpper(char *filename) {
+  char *temp = malloc(strlen(filename) + 1);
+  if (!temp) {
+    return NULL;
+  }
+  strcpy(temp, filename);
+  for (int i = 0; temp[i]; i++) {
+    temp[i] = toupper((unsigned char)temp[i]);
+  }
+  return temp;
 }

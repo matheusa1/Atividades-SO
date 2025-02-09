@@ -7,6 +7,8 @@ void cdCommand(char *command, Fat32Image *image, char *currentPath) {
     return;
   }
 
+  dirname = fileToUpper(dirname);
+
   // Se o usuário digitar "cd /", volta para a raiz
   if (strcmp(dirname, "/") == 0) {
     current_dir = image->boot_sector.BPB_RootClus;

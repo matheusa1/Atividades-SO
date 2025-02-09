@@ -7,42 +7,6 @@
 // Função auxiliar para converter uma string (ex: "ARQUIVO.TXT") para o formato
 // FAT 8.3 (11 bytes) O resultado é colocado em out, que deve ter espaço para 11
 // bytes.
-static void string_to_FAT83(const char *input, char out[11]) {
-  // Inicializa com espaços (caractere 0x20)
-  for (int i = 0; i < 11; i++) {
-    out[i] = ' ';
-  }
-  // Cria uma cópia da string em caixa alta
-  char temp[256];
-  strncpy(temp, input, sizeof(temp) - 1);
-  temp[sizeof(temp) - 1] = '\0';
-  for (int i = 0; temp[i]; i++) {
-    temp[i] = toupper((unsigned char)temp[i]);
-  }
-  // Procura o ponto para separar nome e extensão, se existir
-  char *dot = strchr(temp, '.');
-  int name_len = 0, ext_len = 0;
-  if (dot) {
-    name_len = dot - temp;
-    ext_len = strlen(dot + 1);
-  } else {
-    name_len = strlen(temp);
-    ext_len = 0;
-  }
-  if (name_len > 8)
-    name_len = 8;
-  if (ext_len > 3)
-    ext_len = 3;
-
-  // Copia o nome
-  for (int i = 0; i < name_len; i++) {
-    out[i] = temp[i];
-  }
-  // Copia a extensão
-  for (int i = 0; i < ext_len; i++) {
-    out[8 + i] = dot ? dot[1 + i] : ' ';
-  }
-}
 
 // Função que implementa o comando rename.
 // Espera: "rename <nome_antigo> <nome_novo>"
@@ -51,6 +15,8 @@ void renameCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
   char *args = command + 6;
   while (*args == ' ')
     args++;
+
+  args = fileToUpper(args);
 
   // Separa os dois argumentos
   char *old_name = strtok(args, " ");
