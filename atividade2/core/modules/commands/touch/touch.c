@@ -1,62 +1,6 @@
 #include "interface.h"
 #include <stdlib.h>
 
-// Encontra e marca um cluster livre na FAT, devolve o número dele, ou
-// 0xFFFFFFFF se não houver
-static uint32_t allocate_free_cluster(Fat32Image *image) {
-  // Lendo algumas informações
-  uint32_t total_fat_entries =
-      (image->boot_sector.BPB_FATSz32 * image->boot_sector.BPB_BytsPerSec) /
-      sizeof(uint32_t);
-
-  // Vamos começar (naive) no fs_info.FSI_Nxt_Free (se não for inválido)
-  // Você pode implementar scanning mais robusto se preferir.
-  uint32_t start = image->fs_info.FSI_Nxt_Free;
-  if (start < 2 || start >= total_fat_entries) {
-    start = 2; // 2 é o primeiro cluster de dados em FAT32
-  }
-
-  // Procura um cluster livre (valor 0x00000000 na FAT)
-  for (uint32_t i = start; i < total_fat_entries; i++) {
-    if ((image->fat1[i] & 0x0FFFFFFF) == 0x00000000) {
-      // cluster livre
-      // marca fim-de-cadeia (0x0FFFFFFF)
-      image->fat1[i] = 0x0FFFFFFF; // EOC
-      // Retorna este cluster
-      return i;
-    }
-  }
-  // Não encontrou a partir de start, tenta do 2 até start
-  // (pode cobrir o caso em que Nxt_Free > real)
-  for (uint32_t i = 2; i < start; i++) {
-    if ((image->fat1[i] & 0x0FFFFFFF) == 0x00000000) {
-      image->fat1[i] = 0x0FFFFFFF;
-      return i;
-    }
-  }
-  // Se chegou aqui, não há clusters livres
-  return 0xFFFFFFFF;
-}
-
-static void update_fsinfo(Fat32Image *image, uint32_t just_allocated) {
-  // Decrementa contagem livre se não for 0xFFFFFFFF
-  if (image->fs_info.FSI_Free_Count != 0xFFFFFFFF) {
-    if (image->fs_info.FSI_Free_Count > 0)
-      image->fs_info.FSI_Free_Count--;
-  }
-
-  // Atualiza FSI_Nxt_Free, ingênuo -> “próximo cluster” = just_allocated + 1
-  // (você poderia fazer algo melhor se quisesse)
-  image->fs_info.FSI_Nxt_Free = just_allocated + 1;
-
-  // Reposiciona e escreve
-  fseek(image->file,
-        image->boot_sector.BPB_FSInfo * image->boot_sector.BPB_BytsPerSec,
-        SEEK_SET);
-  fwrite(&(image->fs_info), sizeof(image->fs_info), 1, image->file);
-  fflush(image->file);
-}
-
 void touchCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
   char *filename = &command[6];
   while (*filename == ' ') {

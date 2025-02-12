@@ -244,3 +244,266 @@ char *fileToUpper(char *filename) {
   }
   return temp;
 }
+
+int findFileOnCluster(const char *filename, uint32_t *foundFileCluster,
+                      uint32_t *foundFileSize, Fat32Image *image,
+                      uint32_t dirCluster) {
+  uint32_t sec_size = image->boot_sector.BPB_BytsPerSec;
+  uint32_t cluster_size = sec_size * image->boot_sector.BPB_SecPerClus;
+
+  // Vamos percorrer a cadeia de clusters do diretório
+  uint32_t cluster = dirCluster;
+  int foundEntry = 0;
+  uint32_t fileCluster = 0;
+  uint32_t fileSize = 0;
+
+  while (!foundEntry && cluster != 0xFFFFFFFF) {
+    // Cálculo do primeiro setor do cluster atual
+    uint32_t first_data_sector =
+        image->boot_sector.BPB_RsvdSecCnt +
+        (image->boot_sector.BPB_NumFATs * image->boot_sector.BPB_FATSz32);
+    uint32_t sector_num =
+        first_data_sector + (cluster - 2) * image->boot_sector.BPB_SecPerClus;
+    uint32_t cluster_offset = sector_num * sec_size;
+
+    // Lê o cluster do diretório
+    uint8_t *buffer = (uint8_t *)malloc(cluster_size);
+    if (!buffer) {
+      fprintf(stderr, "Erro de alocação de memória em buscaEntradaArquivo.\n");
+      return -1;
+    }
+    fseek(image->file, cluster_offset, SEEK_SET);
+    if (fread(buffer, cluster_size, 1, image->file) != 1) {
+      free(buffer);
+      fprintf(stderr, "Erro ao ler cluster em buscaEntradaArquivo.\n");
+      return -1;
+    }
+
+    FAT32_DirEntry *entry = (FAT32_DirEntry *)buffer;
+    int entries_per_cluster = cluster_size / sizeof(FAT32_DirEntry);
+
+    for (int i = 0; i < entries_per_cluster; i++) {
+      // 0x00 => fim das entradas
+      if (entry[i].DIR_Name[0] == 0x00) {
+        break;
+      }
+      // 0xE5 => entrada marcada como livre/apagada
+      if (entry[i].DIR_Name[0] == 0xE5)
+        continue;
+      // Se for volume label, ignora
+      if (entry[i].DIR_Attr & 0x08)
+        continue;
+
+      // Converte o nome 8.3 da entrada para string
+      char name[13];
+      convert_to_83(entry[i].DIR_Name, name);
+
+      // Compara com o filename (supondo que filename já esteja em caixa alta)
+      if (strcmp(name, filename) == 0) {
+        // Achamos o arquivo
+        foundEntry = 1;
+        fileCluster = (entry[i].DIR_FstClusHI << 16) | entry[i].DIR_FstClusLO;
+        fileSize = entry[i].DIR_FileSize;
+        break;
+      }
+    }
+
+    free(buffer);
+
+    if (!foundEntry) {
+      // Pega o próximo cluster do diretório
+      uint32_t next_cluster = get_next_cluster(image, cluster);
+      if (next_cluster == 0xFFFFFFFF || next_cluster == cluster) {
+        // Fim da cadeia ou loop infinito
+        break;
+      }
+      cluster = next_cluster;
+    }
+  }
+
+  if (foundEntry && fileCluster != 0) {
+    *foundFileCluster = fileCluster;
+    *foundFileSize = fileSize;
+    return 0; // sucesso
+  }
+
+  return -1; // não encontrou
+}
+
+// Encontra e marca um cluster livre na FAT, devolve o número dele, ou
+// 0xFFFFFFFF se não houver
+uint32_t allocate_free_cluster(Fat32Image *image) {
+  // Lendo algumas informações
+  uint32_t total_fat_entries =
+      (image->boot_sector.BPB_FATSz32 * image->boot_sector.BPB_BytsPerSec) /
+      sizeof(uint32_t);
+
+  // Vamos começar (naive) no fs_info.FSI_Nxt_Free (se não for inválido)
+  // Você pode implementar scanning mais robusto se preferir.
+  uint32_t start = image->fs_info.FSI_Nxt_Free;
+  if (start < 2 || start >= total_fat_entries) {
+    start = 2; // 2 é o primeiro cluster de dados em FAT32
+  }
+
+  // Procura um cluster livre (valor 0x00000000 na FAT)
+  for (uint32_t i = start; i < total_fat_entries; i++) {
+    if ((image->fat1[i] & 0x0FFFFFFF) == 0x00000000) {
+      // cluster livre
+      // marca fim-de-cadeia (0x0FFFFFFF)
+      image->fat1[i] = 0x0FFFFFFF; // EOC
+      // Retorna este cluster
+      return i;
+    }
+  }
+  // Não encontrou a partir de start, tenta do 2 até start
+  // (pode cobrir o caso em que Nxt_Free > real)
+  for (uint32_t i = 2; i < start; i++) {
+    if ((image->fat1[i] & 0x0FFFFFFF) == 0x00000000) {
+      image->fat1[i] = 0x0FFFFFFF;
+      return i;
+    }
+  }
+  // Se chegou aqui, não há clusters livres
+  return 0xFFFFFFFF;
+}
+
+void update_fsinfo(Fat32Image *image, uint32_t just_allocated) {
+  // Decrementa contagem livre se não for 0xFFFFFFFF
+  if (image->fs_info.FSI_Free_Count != 0xFFFFFFFF) {
+    if (image->fs_info.FSI_Free_Count > 0)
+      image->fs_info.FSI_Free_Count--;
+  }
+
+  // Atualiza FSI_Nxt_Free, ingênuo -> “próximo cluster” = just_allocated + 1
+  // (você poderia fazer algo melhor se quisesse)
+  image->fs_info.FSI_Nxt_Free = just_allocated + 1;
+
+  // Reposiciona e escreve
+  fseek(image->file,
+        image->boot_sector.BPB_FSInfo * image->boot_sector.BPB_BytsPerSec,
+        SEEK_SET);
+  fwrite(&(image->fs_info), sizeof(image->fs_info), 1, image->file);
+  fflush(image->file);
+}
+
+int findDirEntry(const char *filename, FAT32_DirEntry *entry, Fat32Image *image,
+                 uint32_t current_cluster) {
+  uint32_t cluster = current_cluster;
+  uint32_t sector_size = image->boot_sector.BPB_BytsPerSec;
+  uint32_t cluster_size = image->boot_sector.BPB_SecPerClus * sector_size;
+
+  char filename_fat[11];
+  string_to_FAT83(filename, filename_fat);
+
+  while (cluster != 0xFFFFFFFF) {
+    // Calcula o setor inicial do cluster
+    uint32_t first_data_sector =
+        image->boot_sector.BPB_RsvdSecCnt +
+        (image->boot_sector.BPB_NumFATs * image->boot_sector.BPB_FATSz32);
+    uint32_t sector =
+        first_data_sector + (cluster - 2) * image->boot_sector.BPB_SecPerClus;
+
+    // Lê o cluster
+    uint8_t *buffer = malloc(cluster_size);
+    if (!buffer)
+      return -1;
+
+    fseek(image->file, sector * sector_size, SEEK_SET);
+    if (fread(buffer, cluster_size, 1, image->file) != 1) {
+      free(buffer);
+      return -1;
+    }
+
+    // Varre as entradas do diretório
+    FAT32_DirEntry *dir_entries = (FAT32_DirEntry *)buffer;
+    int entries_per_cluster = cluster_size / sizeof(FAT32_DirEntry);
+
+    for (int i = 0; i < entries_per_cluster; i++) {
+      // Fim das entradas
+      if (dir_entries[i].DIR_Name[0] == 0x00) {
+        free(buffer);
+        return -1;
+      }
+
+      // Entrada apagada
+      if (dir_entries[i].DIR_Name[0] == 0xE5)
+        continue;
+
+      // Compara os nomes
+      if (memcmp(dir_entries[i].DIR_Name, filename_fat, 11) == 0) {
+        // Encontrou! Copia a entrada e retorna
+        memcpy(entry, &dir_entries[i], sizeof(FAT32_DirEntry));
+        free(buffer);
+        return 0;
+      }
+    }
+
+    free(buffer);
+
+    // Próximo cluster
+    cluster = get_next_cluster(image, cluster);
+  }
+
+  return -1; // Não encontrado
+}
+
+// Atualiza uma entrada de diretório existente
+void updateDirEntry(const char *filename, FAT32_DirEntry *entry,
+                    Fat32Image *image, uint32_t current_cluster) {
+  uint32_t cluster = current_cluster;
+  uint32_t sector_size = image->boot_sector.BPB_BytsPerSec;
+  uint32_t cluster_size = image->boot_sector.BPB_SecPerClus * sector_size;
+
+  char filename_fat[11];
+  string_to_FAT83(filename, filename_fat);
+
+  while (cluster != 0xFFFFFFFF) {
+    // Calcula o setor inicial do cluster
+    uint32_t first_data_sector =
+        image->boot_sector.BPB_RsvdSecCnt +
+        (image->boot_sector.BPB_NumFATs * image->boot_sector.BPB_FATSz32);
+    uint32_t sector =
+        first_data_sector + (cluster - 2) * image->boot_sector.BPB_SecPerClus;
+
+    // Lê o cluster
+    uint8_t *buffer = malloc(cluster_size);
+    if (!buffer)
+      return;
+
+    fseek(image->file, sector * sector_size, SEEK_SET);
+    if (fread(buffer, cluster_size, 1, image->file) != 1) {
+      free(buffer);
+      return;
+    }
+
+    // Varre as entradas do diretório
+    FAT32_DirEntry *dir_entries = (FAT32_DirEntry *)buffer;
+    int entries_per_cluster = cluster_size / sizeof(FAT32_DirEntry);
+
+    for (int i = 0; i < entries_per_cluster; i++) {
+      if (dir_entries[i].DIR_Name[0] == 0x00) {
+        free(buffer);
+        return;
+      }
+
+      if (dir_entries[i].DIR_Name[0] == 0xE5)
+        continue;
+
+      if (memcmp(dir_entries[i].DIR_Name, filename_fat, 11) == 0) {
+        // Encontrou! Atualiza a entrada
+        memcpy(&dir_entries[i], entry, sizeof(FAT32_DirEntry));
+
+        // Escreve o cluster atualizado de volta no disco
+        fseek(image->file, sector * sector_size, SEEK_SET);
+        fwrite(buffer, cluster_size, 1, image->file);
+        fflush(image->file);
+
+        free(buffer);
+        return;
+      }
+    }
+
+    free(buffer);
+    cluster = get_next_cluster(image, cluster);
+  }
+}
