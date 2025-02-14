@@ -219,6 +219,16 @@ void cpCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
   // Verifica se dst está na imagem
   int dstInImage = isImagePath(dst);
 
+  // Verifica se é um diretório, caso seja não é permitido copiar
+  FAT32_DirEntry srcEntry;
+  if (findDirEntry(stripImagePrefix(src), &srcEntry, image, current_cluster) >=
+      0) {
+    if (srcEntry.DIR_Attr & 0x10) {
+      fprintf(stderr, "Não é permitido copiar diretórios.\n");
+      return;
+    }
+  }
+
   // Se ambos local → local, poderia simplesmente usar a função do sistema
   // (fopen/fwrite). Se local → imagem, chamamos copyFileHostToImage. Se imagem
   // → local, chamamos copyFileImageToHost. Se imagem → imagem, precisamos de

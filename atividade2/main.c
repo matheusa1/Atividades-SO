@@ -11,6 +11,7 @@
 #include "core/modules/commands/info/interface.h"
 #include "core/modules/commands/ls/interface.h"
 #include "core/modules/commands/mkdir/interface.h"
+#include "core/modules/commands/mv/interface.h"
 #include "core/modules/commands/rename/interface.h"
 #include "core/modules/commands/rm/interface.h"
 #include "core/modules/commands/touch/interface.h"
@@ -127,6 +128,8 @@ int main(int argc, char *argv[]) {
       // Comando "exit": encerra o shell
     } else if (strncmp(command, "cp", 2) == 0) {
       cpCommand(command, &image, current_dir);
+    } else if (strncmp(command, "mv", 2) == 0) {
+      mvCommand(command, &image, current_dir);
     } else if (strcmp(command, "exit") == 0) {
       break;
     } else {
