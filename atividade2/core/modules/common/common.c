@@ -9,8 +9,9 @@ int stack_top = -1;
 char currentPath[256] = "/";
 uint32_t current_dir;
 
+// Função para obter o próximo cluster
 uint32_t get_next_cluster(Fat32Image *img, uint32_t cluster) {
-  // Quantas entradas de 32 bits há na FAT1?
+  // Lê quantas entradas de 32 bits há na FAT1
   uint32_t maxClusters =
       (img->boot_sector.BPB_FATSz32 * img->boot_sector.BPB_BytsPerSec) /
       sizeof(uint32_t);
@@ -25,16 +26,17 @@ uint32_t get_next_cluster(Fat32Image *img, uint32_t cluster) {
 
   // Lê o valor da FAT
   uint32_t value = img->fat1[cluster];
-  // FAT32 usa apenas 28 bits
+
   value &= 0x0FFFFFFF;
 
-  // Se >= 0x0FFFFFF8, consideramos fim de cadeia
+  // Se >= 0x0FFFFFF8, fim de cadeia
   if (value >= 0x0FFFFFF8) {
     return 0xFFFFFFFF;
   }
   return value;
 }
 
+// Função para converter um nome de arquivo para o formato 8.3
 void convert_to_83(const char *src, char *dst) {
   // Copia o nome (8 caracteres) e a extensão (3 caracteres)
   int i, j = 0;
@@ -62,13 +64,15 @@ void convert_to_83(const char *src, char *dst) {
   dst[j] = '\0';
 }
 
+// Função para calcular o tamanho de um cluster
 uint32_t compute_cluster_size(Fat32Image *image) {
   return image->boot_sector.BPB_SecPerClus * image->boot_sector.BPB_BytsPerSec;
 }
 
+// Função para encontrar um diretório em um cluster
 uint32_t find_directory_cluster(Fat32Image *img, uint32_t start_cluster,
                                 const char *dirname) {
-  // Vamos percorrer o diretório 'start_cluster' procurando por 'dirname'.
+  // Percorre o diretório 'start_cluster' procurando por 'dirname'.
   uint32_t cluster = start_cluster;
   uint32_t sector_size = img->boot_sector.BPB_BytsPerSec;
   uint32_t cluster_size = img->boot_sector.BPB_SecPerClus * sector_size;
@@ -106,12 +110,12 @@ uint32_t find_directory_cluster(Fat32Image *img, uint32_t start_cluster,
         return 0xFFFFFFFF;
       }
       // Se estiver marcada como apagada (0xE5) ou volume label, ignora
-      if (entry[i].DIR_Name[0] == 0xE5)
+      if ((unsigned char)entry[i].DIR_Name[0] == 0xE5)
         continue;
       if (entry[i].DIR_Attr & 0x08)
         continue;
 
-      // Precisamos que seja um diretório (DIR_Attr & 0x10 != 0)
+      // Verifica se é um diretório
       if ((entry[i].DIR_Attr & 0x10) == 0) {
         // Não é diretório, ignore
         continue;
@@ -121,11 +125,9 @@ uint32_t find_directory_cluster(Fat32Image *img, uint32_t start_cluster,
       char name[13];
       convert_to_83(entry[i].DIR_Name, name);
 
-      // Comparação simples, case-sensitiva:
-      // Se quiser ignorar maiúsculas e minúsculas, faça tolower ou algo
-      // similar.
+      // Compara o nome do diretório
       if (strcmp(name, dirname) == 0) {
-        // Achamos o subdiretório. Precisamos montar o cluster dele:
+        // Monta o cluster do subdiretório
         uint32_t hi = entry[i].DIR_FstClusHI;
         uint32_t lo = entry[i].DIR_FstClusLO;
         uint32_t subdir_cluster = (hi << 16) | lo;
@@ -137,7 +139,7 @@ uint32_t find_directory_cluster(Fat32Image *img, uint32_t start_cluster,
 
     free(buffer);
 
-    // Se não achamos nesse cluster, buscamos o próximo na cadeia
+    // Caso não encontre o diretório no cluster atual, busca no próximo
     uint32_t next_cluster = get_next_cluster(img, cluster);
     if (next_cluster == 0xFFFFFFFF) {
       // Fim da cadeia
@@ -150,9 +152,9 @@ uint32_t find_directory_cluster(Fat32Image *img, uint32_t start_cluster,
     }
     cluster = next_cluster;
   }
-  // Em teoria, não chega aqui; loop while(1) é encerrado antes.
 }
 
+// Função para converter uma string para o formato FAT83
 void string_to_FAT83(const char *input, char out[11]) {
   // Inicializa com espaços (caractere 0x20)
   for (int i = 0; i < 11; i++) {
@@ -190,6 +192,7 @@ void string_to_FAT83(const char *input, char out[11]) {
   }
 }
 
+// Função para converter uma data para o formato FAT16
 uint16_t dateToFatDate(struct tm *lt) {
   int year = lt->tm_year + 1900; // tm_year conta desde 1900
   int month = lt->tm_mon + 1;    // tm_mon vai de 0 a 11
@@ -200,6 +203,7 @@ uint16_t dateToFatDate(struct tm *lt) {
   return fat_date;
 }
 
+// Função para converter uma hora para o formato FAT16
 uint16_t timeToFatTime(struct tm *lt) {
   int hour = lt->tm_hour;
   int minute = lt->tm_min;
@@ -210,10 +214,8 @@ uint16_t timeToFatTime(struct tm *lt) {
   return fat_time;
 }
 
-/**
- * Atualiza (escreve) a FAT no disco.
- * Se BPB_NumFATs == 2, também escreverá na segunda FAT.
- */
+// Função para atualizar (escrever) a FAT no disco.
+// Se BPB_NumFATs == 2, também escreverá na segunda FAT.
 void write_fat(Fat32Image *img) {
   // Calcula onde começa a FAT1
   uint32_t reserved_sectors = img->boot_sector.BPB_RsvdSecCnt;
@@ -233,6 +235,7 @@ void write_fat(Fat32Image *img) {
   fflush(img->file);
 }
 
+// Converte um nome de arquivo para maiúsculas.
 char *fileToUpper(char *filename) {
   char *temp = malloc(strlen(filename) + 1);
   if (!temp) {
@@ -245,6 +248,7 @@ char *fileToUpper(char *filename) {
   return temp;
 }
 
+// Procura um arquivo em um cluster específico.
 int findFileOnCluster(const char *filename, uint32_t *foundFileCluster,
                       uint32_t *foundFileSize, Fat32Image *image,
                       uint32_t dirCluster) {
@@ -288,7 +292,7 @@ int findFileOnCluster(const char *filename, uint32_t *foundFileCluster,
         break;
       }
       // 0xE5 => entrada marcada como livre/apagada
-      if (entry[i].DIR_Name[0] == 0xE5)
+      if ((unsigned char)entry[i].DIR_Name[0] == 0xE5)
         continue;
       // Se for volume label, ignora
       if (entry[i].DIR_Attr & 0x08)
@@ -338,11 +342,10 @@ uint32_t allocate_free_cluster(Fat32Image *image) {
       (image->boot_sector.BPB_FATSz32 * image->boot_sector.BPB_BytsPerSec) /
       sizeof(uint32_t);
 
-  // Vamos começar (naive) no fs_info.FSI_Nxt_Free (se não for inválido)
-  // Você pode implementar scanning mais robusto se preferir.
+  // Começa no primeiro cluster livre
   uint32_t start = image->fs_info.FSI_Nxt_Free;
   if (start < 2 || start >= total_fat_entries) {
-    start = 2; // 2 é o primeiro cluster de dados em FAT32
+    start = 2; // Inicializa com o primeiro cluster livre
   }
 
   // Procura um cluster livre (valor 0x00000000 na FAT)
@@ -367,6 +370,7 @@ uint32_t allocate_free_cluster(Fat32Image *image) {
   return 0xFFFFFFFF;
 }
 
+// Atualiza informações do sistema de arquivos
 void update_fsinfo(Fat32Image *image, uint32_t just_allocated) {
   // Decrementa contagem livre se não for 0xFFFFFFFF
   if (image->fs_info.FSI_Free_Count != 0xFFFFFFFF) {
@@ -374,8 +378,7 @@ void update_fsinfo(Fat32Image *image, uint32_t just_allocated) {
       image->fs_info.FSI_Free_Count--;
   }
 
-  // Atualiza FSI_Nxt_Free, ingênuo -> “próximo cluster” = just_allocated + 1
-  // (você poderia fazer algo melhor se quisesse)
+  // Atualiza FSI_Nxt_Free
   image->fs_info.FSI_Nxt_Free = just_allocated + 1;
 
   // Reposiciona e escreve
@@ -386,6 +389,7 @@ void update_fsinfo(Fat32Image *image, uint32_t just_allocated) {
   fflush(image->file);
 }
 
+// Encontra uma entrada de diretório
 int findDirEntry(const char *filename, FAT32_DirEntry *entry, Fat32Image *image,
                  uint32_t current_cluster) {
   uint32_t cluster = current_cluster;
@@ -426,7 +430,7 @@ int findDirEntry(const char *filename, FAT32_DirEntry *entry, Fat32Image *image,
       }
 
       // Entrada apagada
-      if (dir_entries[i].DIR_Name[0] == 0xE5)
+      if ((unsigned char)dir_entries[i].DIR_Name[0] == 0xE5)
         continue;
 
       // Compara os nomes
@@ -486,7 +490,7 @@ void updateDirEntry(const char *filename, FAT32_DirEntry *entry,
         return;
       }
 
-      if (dir_entries[i].DIR_Name[0] == 0xE5)
+      if ((unsigned char)dir_entries[i].DIR_Name[0] == 0xE5)
         continue;
 
       if (memcmp(dir_entries[i].DIR_Name, filename_fat, 11) == 0) {

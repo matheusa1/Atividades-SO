@@ -1,5 +1,4 @@
 #include "interface.h"
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,7 +80,7 @@ void renameCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
         goto fim;
       }
       // Se a entrada estiver apagada ou for volume label, ignora
-      if (entry[i].DIR_Name[0] == 0xE5)
+      if ((unsigned char)entry[i].DIR_Name[0] == 0xE5)
         continue;
       if (entry[i].DIR_Attr & 0x08)
         continue;

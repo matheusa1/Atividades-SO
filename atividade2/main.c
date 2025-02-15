@@ -14,6 +14,7 @@
 #include "core/modules/commands/mv/interface.h"
 #include "core/modules/commands/rename/interface.h"
 #include "core/modules/commands/rm/interface.h"
+#include "core/modules/commands/rmdir/interface.h"
 #include "core/modules/commands/touch/interface.h"
 #include "core/modules/common/interface.h"
 
@@ -71,7 +72,6 @@ int main(int argc, char *argv[]) {
     fclose(file);
     return 1;
   }
-  uint32_t *fat2 = (uint32_t *)malloc(fat_size); // Se BPB_NumFATs > 1
 
   // Carregar FAT1
   fseek(file,
@@ -105,16 +105,15 @@ int main(int argc, char *argv[]) {
       Fat_show_info(&image);
     } else if (strcmp(command, "ls") == 0) {
       list_directory(current_dir, image);
-    }
-    // Comando "cluster <num>": exibe o conteúdo do cluster especificado
-    else if (strncmp(command, "cluster", 7) == 0) {
+    } else if (strncmp(command, "cluster", 7) == 0) {
       uint32_t cluster_num = atoi(&command[8]); // Extrai o número do cluster
       show_cluster(&image, cluster_num);
     } else if (strncmp(command, "cd", 2) == 0) {
-      // “cd ” tem 3 caracteres, então o restante é o nome do diretório
       cdCommand(command, &image, currentPath);
     } else if (strncmp(command, "pwd", 3) == 0) {
       printf("%s\n", currentPath);
+    } else if (strncmp(command, "rmdir", 5) == 0) {
+      rmdirCommand(command, &image, current_dir);
     } else if (strncmp(command, "attr", 4) == 0) {
       attrCommand(command, &image, current_dir);
     } else if (strncmp(command, "rename", 6) == 0) {
@@ -125,12 +124,12 @@ int main(int argc, char *argv[]) {
       mkdirCommand(command, &image, current_dir);
     } else if (strncmp(command, "rm", 2) == 0) {
       rm_command(command, &image, current_dir);
-      // Comando "exit": encerra o shell
     } else if (strncmp(command, "cp", 2) == 0) {
       cpCommand(command, &image, current_dir);
     } else if (strncmp(command, "mv", 2) == 0) {
       mvCommand(command, &image, current_dir);
     } else if (strcmp(command, "exit") == 0) {
+      // Comando "exit": encerra o shell
       break;
     } else {
       printf("Unknown command: %s\n", command);

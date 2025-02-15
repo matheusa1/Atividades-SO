@@ -13,7 +13,7 @@ static uint32_t find_free_cluster(Fat32Image *img) {
   uint32_t total_clusters =
       (img->boot_sector.BPB_FATSz32 * img->boot_sector.BPB_BytsPerSec) / 4;
 
-  // Percorre a FAT a partir do cluster 2 (geralmente 0 e 1 são reservados)
+  // Percorre a FAT a partir do cluster 2
   for (uint32_t c = 2; c < total_clusters; c++) {
     uint32_t val = img->fat1[c] & 0x0FFFFFFF;
     if (val == 0x00000000) {
@@ -39,7 +39,7 @@ static void init_directory_cluster(Fat32Image *img, uint32_t cluster_new,
   uint32_t sector_size = img->boot_sector.BPB_BytsPerSec;
   uint32_t cluster_size = compute_cluster_size(img);
 
-  // Alocar buffer para limpar o cluster, depois vamos preencher '.' e '..'
+  // Aloca buffer para limpar o cluster
   uint8_t *buffer = calloc(cluster_size, 1);
   if (!buffer) {
     fprintf(stderr, "Erro de alocação em init_directory_cluster\n");
@@ -118,10 +118,7 @@ void mkdirCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
   // Inicializa o cluster com '.' e '..'
   init_directory_cluster(image, new_cluster, current_cluster);
 
-  // ------------------------------------------------------------------------
-  // Cria a entrada de diretório no "diretório-pai" (current_cluster).
-  // Procuramos uma entrada livre (DIR_Name[0] == 0x00 ou 0xE5).
-  // ------------------------------------------------------------------------
+  // Cria a entrada de diretório no "diretório-pai"
   uint32_t cluster = current_cluster;
   uint32_t sector_size = image->boot_sector.BPB_BytsPerSec;
   uint32_t cluster_size = compute_cluster_size(image);
@@ -157,7 +154,8 @@ void mkdirCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
     for (int i = 0; i < entries; i++) {
       // 0x00 => entrada livre
       // 0xE5 => entrada marcada como excluída
-      if (entry[i].DIR_Name[0] == 0x00 || entry[i].DIR_Name[0] == 0xE5) {
+      if (entry[i].DIR_Name[0] == 0x00 ||
+          (unsigned char)entry[i].DIR_Name[0] == 0xE5) {
         // Achamos espaço
         memcpy(entry[i].DIR_Name, fat_name, 11);
         entry[i].DIR_Attr = 0x10; // Diretório

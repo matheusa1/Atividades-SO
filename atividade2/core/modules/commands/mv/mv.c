@@ -36,7 +36,7 @@ static int moveFileImageToHost(const char *src_path_in_image,
   }
   printf("'\n");
 
-  // 1. Localiza o arquivo na imagem
+  // Localiza o arquivo na imagem
   FAT32_DirEntry entry;
   if (findDirEntry(src_path_in_image, &entry, image, current_cluster) < 0) {
     fprintf(stderr, "Arquivo '%s' não encontrado na imagem.\n",
@@ -44,11 +44,11 @@ static int moveFileImageToHost(const char *src_path_in_image,
     return -1;
   }
 
-  // 2. Obtém o cluster inicial e tamanho do arquivo
+  // Obtém o cluster inicial e tamanho do arquivo
   uint32_t fileCluster = (entry.DIR_FstClusHI << 16) | entry.DIR_FstClusLO;
   uint32_t fileSize = entry.DIR_FileSize;
 
-  // 3. Cria o arquivo de destino no sistema host
+  // Cria o arquivo de destino no sistema host
   FILE *fdst = fopen(dst_path, "wb");
   if (!fdst) {
     fprintf(stderr, "Erro ao criar arquivo local '%s': %s\n", dst_path,
@@ -56,7 +56,7 @@ static int moveFileImageToHost(const char *src_path_in_image,
     return -1;
   }
 
-  // 4. Copia o conteúdo
+  // Copia o conteúdo
   uint32_t sec_size = image->boot_sector.BPB_BytsPerSec;
   uint32_t cluster_size = sec_size * image->boot_sector.BPB_SecPerClus;
   uint8_t *buffer = malloc(cluster_size);
@@ -91,7 +91,7 @@ static int moveFileImageToHost(const char *src_path_in_image,
   fclose(fdst);
   free(buffer);
 
-  // 5. Remove a entrada do diretório e libera os clusters
+  // Remove a entrada do diretório e libera os clusters
   uint32_t dir_cluster = current_cluster;
   uint32_t cluster_to_free = fileCluster;
 
@@ -130,7 +130,7 @@ static int moveFileImageToHost(const char *src_path_in_image,
   }
 
 cleanup_fat:
-  // Agora libera os clusters na FAT
+  // libera os clusters na FAT
   while (cluster_to_free != 0 && cluster_to_free < 0x0FFFFFF8) {
     uint32_t next = get_next_cluster(image, cluster_to_free);
     image->fat1[cluster_to_free] = 0; // Marca como livre
@@ -149,7 +149,7 @@ cleanup_fat:
 static int moveFileHostToImage(const char *src_path,
                                const char *dst_path_in_image, Fat32Image *image,
                                uint32_t current_cluster) {
-  // 1. Abre o arquivo fonte no sistema host
+  // Abre o arquivo fonte no sistema host
   FILE *fsrc = fopen(src_path, "rb");
   if (!fsrc) {
     fprintf(stderr, "Erro ao abrir arquivo local '%s': %s\n", src_path,
@@ -157,12 +157,12 @@ static int moveFileHostToImage(const char *src_path,
     return -1;
   }
 
-  // 2. Cria o arquivo na imagem
+  // Cria o arquivo na imagem
   char cmd[256];
   snprintf(cmd, sizeof(cmd), "touch %s", dst_path_in_image);
   touchCommand(cmd, image, current_cluster);
 
-  // 3. Localiza a entrada criada
+  // Localiza a entrada criada
   FAT32_DirEntry entry;
   if (findDirEntry(dst_path_in_image, &entry, image, current_cluster) < 0) {
     fprintf(stderr, "Erro ao localizar arquivo criado na imagem.\n");
@@ -170,7 +170,7 @@ static int moveFileHostToImage(const char *src_path,
     return -1;
   }
 
-  // 4. Copia o conteúdo
+  // Copia o conteúdo
   uint32_t fileCluster = (entry.DIR_FstClusHI << 16) | entry.DIR_FstClusLO;
   uint32_t sec_size = image->boot_sector.BPB_BytsPerSec;
   uint32_t cluster_size = sec_size * image->boot_sector.BPB_SecPerClus;
@@ -208,14 +208,14 @@ static int moveFileHostToImage(const char *src_path,
     }
   }
 
-  // 5. Atualiza o tamanho do arquivo
+  // Atualiza o tamanho do arquivo
   entry.DIR_FileSize = totalBytesWritten;
   updateDirEntry(dst_path_in_image, &entry, image, current_cluster);
 
   free(buffer);
   fclose(fsrc);
 
-  // 6. Remove o arquivo original do sistema host
+  // Remove o arquivo original do sistema host
   if (unlink(src_path) != 0) {
     fprintf(stderr,
             "Aviso: não foi possível remover arquivo original '%s': %s\n",

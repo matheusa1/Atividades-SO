@@ -119,7 +119,7 @@ static int copyFileHostToImage(const char *src_path,
 static int copyFileImageToHost(const char *src_path_in_image,
                                const char *dst_path, Fat32Image *image,
                                uint32_t current_cluster) {
-  // 1) Localizar a entrada do arquivo (src_path_in_image) no diretório atual
+  // Localiza a entrada do arquivo (src_path_in_image) no diretório atual
   uint32_t fileCluster = 0;
   uint32_t fileSize = 0;
   if (findFileOnCluster(src_path_in_image, &fileCluster, &fileSize, image,
@@ -129,7 +129,7 @@ static int copyFileImageToHost(const char *src_path_in_image,
     return -1;
   }
 
-  // 2) Cria arquivo de destino local
+  // Cria arquivo de destino local
   FILE *fdst = fopen(dst_path, "wb");
   if (!fdst) {
     fprintf(stderr, "Erro ao criar arquivo local '%s': %s\n", dst_path,
@@ -137,7 +137,7 @@ static int copyFileImageToHost(const char *src_path_in_image,
     return -1;
   }
 
-  // 3) Lê cluster a cluster a cadeia do arquivo na imagem e escreve em fdst
+  // Lê cluster a cluster a cadeia do arquivo na imagem e escreve em fdst
   uint32_t sec_size = image->boot_sector.BPB_BytsPerSec;
   uint32_t cluster_size = sec_size * image->boot_sector.BPB_SecPerClus;
 
@@ -257,7 +257,6 @@ void cpCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
     printf("Copiado local->local: %s -> %s\n", src, dst);
   } else if (!srcInImage && dstInImage) {
     // Local -> Imagem
-    // Precisamos retirar o prefixo "img/" de dst
     const char *dst_path_in_img = stripImagePrefix(dst);
     copyFileHostToImage(src, dst_path_in_img, image, current_cluster);
   } else if (srcInImage && !dstInImage) {
@@ -286,7 +285,7 @@ void cpCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
     // Copia de tmp para imagem (dst)
     copyFileHostToImage(tmpFile, dst_path_in_img, image, current_cluster);
 
-    // Passo 4) remove tmp
+    // remove tmp
     unlink(tmpFile);
     printf("Copiado (imagem->imagem) '%s' -> '%s'.\n", src_path_in_img,
            dst_path_in_img);

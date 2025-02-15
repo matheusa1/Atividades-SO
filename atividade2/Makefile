@@ -11,6 +11,7 @@ c:
 	gcc -g -c core/modules/commands/rm/rm.c
 	gcc -g -c core/modules/commands/cp/cp.c
 	gcc -g -c core/modules/commands/mv/mv.c
+	gcc -g -c core/modules/commands/rmdir/rmdir.c
 	gcc -g -c main.c
 	gcc -o main *.o -lm
 r:

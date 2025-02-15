@@ -1,5 +1,6 @@
 #include "interface.h"
 
+// Move pelos diretórios
 void cdCommand(char *command, Fat32Image *image, char *currentPath) {
   char *dirname = &command[3];
   if (strlen(dirname) == 0) {
@@ -17,7 +18,7 @@ void cdCommand(char *command, Fat32Image *image, char *currentPath) {
     return;
   }
 
-  // Se for "cd ..", volta para o diretório pai (se possível)
+  // Se for "cd ..", volta para o diretório pai
   if (strcmp(dirname, "..") == 0) {
     if (stack_top >= 0) {
       current_dir = dir_stack[stack_top]; // recupera o diretório anterior
@@ -31,14 +32,13 @@ void cdCommand(char *command, Fat32Image *image, char *currentPath) {
         strcpy(currentPath, "/");
       }
     } else {
-      // Se a pilha estiver vazia, já estamos na raiz.
       current_dir = image->boot_sector.BPB_RootClus;
       strcpy(currentPath, "/");
     }
     return;
   }
 
-  // Agora procuramos o cluster do subdiretório
+  // procurama o cluster do subdiretório
   uint32_t newCluster = find_directory_cluster(image, current_dir, dirname);
   if (newCluster == 0xFFFFFFFF) {
     fprintf(stderr, "Diretório '%s' não encontrado.\n", dirname);

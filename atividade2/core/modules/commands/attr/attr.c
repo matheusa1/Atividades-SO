@@ -78,7 +78,7 @@ void attrCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
         goto fim;
       }
       // 0xE5: entrada apagada
-      if (entry[i].DIR_Name[0] == 0xE5)
+      if ((unsigned char)entry[i].DIR_Name[0] == 0xE5)
         continue;
       // Ignora entradas volume label (bit 0x08)
       if (entry[i].DIR_Attr & 0x08)

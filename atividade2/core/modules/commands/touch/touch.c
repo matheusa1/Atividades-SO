@@ -1,6 +1,7 @@
 #include "interface.h"
 #include <stdlib.h>
 
+// Cria um arquivo vazio
 void touchCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
   char *filename = &command[6];
   while (*filename == ' ') {
@@ -40,7 +41,7 @@ void touchCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
                           (dir_cluster - 2) * image->boot_sector.BPB_SecPerClus;
     uint32_t cluster_offset = sector_num * sec_size;
 
-    // Lê esse cluster
+    // Lê o cluster
     uint8_t *buffer = (uint8_t *)malloc(cluster_size);
     if (!buffer) {
       fprintf(stderr, "Falta de memória.\n");
@@ -65,12 +66,14 @@ void touchCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
         break;
       }
       // 0xE5 => entrada livre, podemos reaproveitar
-      if (entry[i].DIR_Name[0] == 0xE5 && encontrou_espaco_vazio < 0) {
+      if ((unsigned char)entry[i].DIR_Name[0] == 0xE5 &&
+          encontrou_espaco_vazio < 0) {
         encontrou_espaco_vazio = i;
         // continuamos, pois podemos achar se o arquivo já existe
       }
       // Se a entrada não está livre, checar se é o arquivo que buscamos
-      if (entry[i].DIR_Name[0] != 0xE5 && !(entry[i].DIR_Attr & 0x08)) {
+      if ((unsigned char)entry[i].DIR_Name[0] != 0xE5 &&
+          !(entry[i].DIR_Attr & 0x08)) {
         // converte para string
         char existingName[13];
         convert_to_83(entry[i].DIR_Name, existingName);
