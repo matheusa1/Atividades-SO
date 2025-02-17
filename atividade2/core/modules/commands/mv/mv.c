@@ -6,6 +6,46 @@
 #include <string.h>
 #include <unistd.h>
 
+int addDirEntryToCluster(Fat32Image *image, FAT32_DirEntry *entry, uint32_t cluster) {
+  uint32_t sec_size = image->boot_sector.BPB_BytsPerSec;
+  uint32_t cluster_size = sec_size * image->boot_sector.BPB_SecPerClus;
+  uint32_t dir_cluster = cluster;
+
+  while (dir_cluster != 0xFFFFFFFF) {
+      uint32_t first_data_sector = image->boot_sector.BPB_RsvdSecCnt
+                                   + (image->boot_sector.BPB_NumFATs * image->boot_sector.BPB_FATSz32);
+      uint32_t sector = first_data_sector
+                        + (dir_cluster - 2) * image->boot_sector.BPB_SecPerClus;
+
+      uint8_t *dir_buffer = malloc(cluster_size);
+      if (!dir_buffer) return -1;
+
+      fseek(image->file, sector * sec_size, SEEK_SET);
+      fread(dir_buffer, cluster_size, 1, image->file);
+
+      FAT32_DirEntry *entries = (FAT32_DirEntry *)dir_buffer;
+      int entries_per_cluster = cluster_size / sizeof(FAT32_DirEntry);
+
+      // Tenta achar uma posição livre (0x00 ou 0xE5)
+      for (int i = 0; i < entries_per_cluster; i++) {
+          if (entries[i].DIR_Name[0] == 0x00 || entries[i].DIR_Name[0] == 0xE5) {
+              memcpy(&entries[i], entry, sizeof(FAT32_DirEntry));
+              fseek(image->file, sector * sec_size, SEEK_SET);
+              fwrite(dir_buffer, cluster_size, 1, image->file);
+              fflush(image->file);
+              free(dir_buffer);
+              return 0; // sucesso
+          }
+      }
+
+      free(dir_buffer);
+      // Se não achou slot livre, segue para o próximo cluster
+      dir_cluster = get_next_cluster(image, dir_cluster);
+  }
+  // Se chegou aqui, o diretório está cheio ou extenso
+  return -1;
+}
+
 /*
  * Verifica se um path começa com "img/"
  */
@@ -270,15 +310,61 @@ void mvCommand(char *command, Fat32Image *image, uint32_t current_cluster) {
       return;
     }
 
-    uint32_t dstCluster =
-        find_directory_cluster(image, current_cluster, dst_name);
+    uint32_t dstCluster = find_directory_cluster(image, current_cluster, dst_name);
     if (dstCluster == 0xFFFFFFFF) {
       fprintf(stderr, "Diretório destino '%s' não encontrado.\n", dst_name);
       return;
     }
 
-    // Move a entrada do diretório
-    // ... (resto do código original para mover dentro da imagem)
+    uint32_t sec_size = image->boot_sector.BPB_BytsPerSec;
+    uint32_t cluster_size = sec_size * image->boot_sector.BPB_SecPerClus;
+
+    // 1) Copiar a entrada para o diretório de destino
+    if (addDirEntryToCluster(image, &srcEntry, dstCluster) < 0) {
+      fprintf(stderr, "Erro ao adicionar entrada no diretório de destino.\n");
+      return;
+    }
+
+    // 2) Marcar a entrada antiga como excluída no diretório de origem
+    {
+      // Converte o nome para FAT 8.3 para comparação
+      char fat_name[11];
+      string_to_FAT83(src_name, fat_name);
+
+      uint32_t dir_cluster = current_cluster;
+      while (dir_cluster != 0xFFFFFFFF) {
+        uint32_t first_data_sector = image->boot_sector.BPB_RsvdSecCnt
+                                     + (image->boot_sector.BPB_NumFATs * image->boot_sector.BPB_FATSz32);
+        uint32_t sector = first_data_sector
+                          + (dir_cluster - 2) * image->boot_sector.BPB_SecPerClus;
+
+        uint8_t *dir_buffer = malloc(cluster_size);
+        if (!dir_buffer) {
+          fprintf(stderr, "Erro de memória ao tentar mover arquivo.\n");
+          return;
+        }
+        fseek(image->file, sector * sec_size, SEEK_SET);
+        fread(dir_buffer, cluster_size, 1, image->file);
+
+        FAT32_DirEntry *entries = (FAT32_DirEntry *)dir_buffer;
+        int entries_per_cluster = cluster_size / sizeof(FAT32_DirEntry);
+
+        for (int i = 0; i < entries_per_cluster; i++) {
+          if (memcmp(entries[i].DIR_Name, fat_name, 11) == 0) {
+            entries[i].DIR_Name[0] = 0xE5; // Marca como excluída
+            fseek(image->file, sector * sec_size, SEEK_SET);
+            fwrite(dir_buffer, cluster_size, 1, image->file);
+            fflush(image->file);
+            free(dir_buffer);
+            goto done_moving;
+          }
+        }
+        free(dir_buffer);
+        dir_cluster = get_next_cluster(image, dir_cluster);
+      }
+    }
+    done_moving:
+    printf("Arquivo '%s' movido para '%s' dentro da imagem.\n", src_name, dst_name);
   } else {
     // Local → Local: use o mv do sistema
     char cmd[512];
